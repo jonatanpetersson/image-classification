@@ -1,13 +1,19 @@
-import React from 'react';
 import logo from './logo.svg';
 import './App.css';
-import { createNetwork } from './neural-network/neural-network';
-import { learningRate, networkModel } from './neural-network/constants';
+import { Network } from './neural-network/neural-network';
+import {
+  imageData,
+  learningRate,
+  networkData,
+} from './neural-network/constants';
 
 function App() {
-  const network = createNetwork(networkModel, learningRate);
+  const network = new Network(networkData, learningRate, imageData);
+  let iteration = network.iteration;
 
-  console.log(network);
+  function handleIteration() {
+    network.iterate();
+  }
 
   return (
     <div className="App">
@@ -24,6 +30,8 @@ function App() {
         >
           Learn React
         </a>
+        <p>Iteration: {iteration}</p>
+        <button onClick={handleIteration}>Iterate</button>
       </header>
     </div>
   );

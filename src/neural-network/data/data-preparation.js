@@ -1,12 +1,13 @@
+// Source: https://stackoverflow.com/questions/25024179/reading-mnist-dataset-with-javascript-node-js
 import * as fs from 'fs';
 import { createCanvas } from 'canvas';
 
 function readMNIST(start, end) {
   const dataFileBuffer = fs.readFileSync(
-    'src/neural-network/data/train-images.idx3-ubyte'
+    'src/neural-network/data/mnist-files/train-images.idx3-ubyte'
   );
   const labelFileBuffer = fs.readFileSync(
-    'src/neural-network/data/train-labels.idx1-ubyte'
+    'src/neural-network/data/mnist-files/train-labels.idx1-ubyte'
   );
   let pixelValues = [];
 
