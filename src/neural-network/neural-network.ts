@@ -1,255 +1,106 @@
-import { imageData } from './constants';
-import { Images, NetworkModel, Node } from './types';
+import { addLinks, createLayers } from "./functions";
+import ImageData from "./data/image-data.json";
+import { Batch } from "./types";
 
 export class Network {
-  layers: Layer[];
-  connections: Connection[];
-  learningRate: number;
-  imageData: Images;
-  iteration: number = -1;
-  constructor(
-    networkModel: NetworkModel,
-    learningRate: number,
-    imageData: Images
-  ) {
-    this.learningRate = learningRate;
-    this.imageData = imageData;
-    this.layers = this.createLayers(networkModel);
-    this.connections = this.createConnections(this.layers);
-    console.time('timer');
-    this.addConnectionsToNodes();
-    console.timeEnd('timer');
+  layers: (Neuron | Input)[][];
+  batch: Batch;
+  constructor() {
+    this.layers = addLinks(createLayers());
+    this.batch = ImageData;
   }
-
-  iterate() {
-    this.iteration += this.iteration === 9 ? -9 : 1;
-    this.loadImageData(
-      imageData[this.iteration].pixels,
-      imageData[this.iteration].label
+  initializeSample(batchIndex: number) {
+    const sample = this.batch[batchIndex];
+    (this.layers[0] as Input[]).forEach((input, i) => {
+      input.setInputValue(this.batch[batchIndex].pixels[i]);
+    });
+    (this.layers[3] as Neuron[]).forEach(
+      (neuron, i) => (neuron.expectedOutput = i === sample.label ? 1 : 0)
     );
-    this.layers[1].nodes.forEach((neuron) => {
-      (neuron as Neuron).calculateActivation();
-    });
-    this.layers[2].nodes.forEach((neuron) => {
-      (neuron as Neuron).calculateActivation();
-    });
-    this.layers[3].nodes.forEach((neuron) => {
-      (neuron as Output).calculateActivationAndCost();
-    });
-    this.layers[2].nodes.forEach((neuron) => {
-      (neuron as Neuron).calculateActivation();
-    });
-    console.log(this);
   }
-  loadImageData(inputs: number[], desiredOutput: number) {
-    this.layers[0].nodes.forEach((node, i) => {
-      (node as Input).input = inputs[i];
-    });
-    this.layers[3].nodes.forEach((node, i) => {
-      (node as Output).desiredOutput = i === desiredOutput ? 1 : 0;
-    });
-  }
-
-  addConnectionsToNodes() {
+  propagateForward() {
     this.layers.forEach((layer, i) => {
-      if (i === this.layers.length - 1) {
-        return;
-      }
-      const layerLeft = layer;
-      const layerRight = this.layers[i + 1];
-
-      layerLeft.nodes.forEach((nodeLeft) => {
-        layerRight.nodes.forEach((nodeRight) => {
-          const connection = this.connections.find(
-            (c) => c.nodeLeft === nodeLeft && c.nodeRight === nodeRight
-          );
-          if (!(nodeLeft instanceof Output)) {
-            nodeLeft.connectionsRight.push(connection as Connection);
-          }
-          if (!(nodeRight instanceof Input)) {
-            nodeRight.connectionsLeft.push(connection as Connection);
-          }
-        });
+      if (i === 0) return;
+      (layer as Neuron[]).forEach((neuron) => {
+        neuron.calculateActivation();
+        neuron.calculateCost();
       });
     });
   }
-
-  createLayers(networkModel: NetworkModel): Layer[] {
-    return networkModel.map(
-      (layer) => new Layer(layer.type, layer.amountOfNodes, this.learningRate)
-    );
-  }
-
-  createConnections(layers: Layer[]): Connection[] {
-    let connections: Connection[] = [];
-    layers.forEach((layerLeft, i) => {
-      if (i === layers.length - 1) {
-        return;
-      }
-      const layerRight = layers[i + 1];
-      layerLeft.nodes!.forEach((nodeLeft) => {
-        layerRight.nodes!.forEach((nodeRight) => {
-          const connection = new Connection(
-            Math.random(),
-            nodeLeft,
-            nodeRight,
-            this.learningRate
-          );
-          connections.push(connection);
-        });
-      });
+  propagateBack() {
+    (this.layers[3] as Neuron[]).forEach((neuron) => {
+      neuron.calculateNewBiasAndWeights(0.1);
     });
-    return connections;
   }
 }
 
-export class Layer {
-  type: string;
-  learningRate: number;
-  nodes: Neuron[] | Input[] | Output[];
-  constructor(type: string, amountOfNodes: number, learningRate: number) {
-    this.type = type;
-    this.learningRate = learningRate;
-    this.nodes = this.createNodes(amountOfNodes);
-  }
-  createNodes(amountOfNodes: number): Neuron[] | Input[] | Output[] {
-    let node: any;
-    switch (this.type) {
-      case 'input':
-        node = (input: number): Input => new Input();
-        break;
-      case 'output':
-        node = (): Output => new Output(Math.random());
-        break;
-      case 'hiddenLayer':
-        node = (): Neuron => new Neuron(Math.random(), this.learningRate);
-        break;
-    }
-    return new Array(amountOfNodes)
-      .fill(undefined)
-      .map((n, i) => (this.type === 'input' ? node() : node()));
+export class Link {
+  weight: number;
+  left?: Neuron | Input;
+  right?: Neuron;
+  constructor(weight: number, left: Neuron | Input, right: Neuron) {
+    this.weight = weight;
+    this.left = left;
+    this.right = right;
   }
 }
 
 export class Input {
-  input?: number;
-  connectionsRight: Connection[] = [];
-  constructor() {}
-  setInput(input: number) {
-    this.input = input;
+  activation?: any;
+  links: { right: Link[] };
+  constructor() {
+    this.links = { right: [] };
   }
-}
-
-export class Output {
-  bias: number;
-  connectionsLeft: Connection[] = [];
-  cost?: number;
-  desiredOutput?: number;
-  output?: number;
-  deltaC?: number;
-  constructor(bias: number) {
-    this.bias = bias;
-  }
-
-  // c = (a - y^2)
-  calculateCost() {
-    this.cost = Math.pow(this.output! - this.desiredOutput!, 2);
-  }
-
-  calculateDeltaC() {
-    // dc = 2(a - y)
-    const deltaCost = 2 * (this.output! - this.desiredOutput!);
-    // da = input
-    const deltaActivation = this.desiredOutput;
-    this.deltaC = deltaCost * deltaActivation!;
-  }
-
-  getInputsAndWeights(): { weights: number[]; inputs: number[] } {
-    let weights: number[] = [];
-    let inputs: number[] = [];
-    this.connectionsLeft.forEach((cLeft) => {
-      weights.push(cLeft.weight);
-      if (cLeft.nodeLeft instanceof Neuron) {
-        inputs.push(cLeft.nodeLeft.activation!);
-      }
-    });
-    return { weights, inputs };
-  }
-
-  calculateActivationAndCost() {
-    const { weights, inputs } = this.getInputsAndWeights();
-    let wx = 0;
-    for (let i = 0; i < weights.length; i++) {
-      wx += weights[i] * inputs[i];
-    }
-    // const xwb = wx + this.bias;
-    const xwb = wx;
-    this.output = 1 / (1 + Math.exp(-xwb)); // Sigmoid
-    // this.output = xwb > 0 ? xwb : 0; // RELU: a = f(max(0, x*w+b))
-    this.calculateCost();
-    this.calculateDeltaC();
+  setInputValue(value: number) {
+    this.activation = value;
   }
 }
 
 export class Neuron {
-  learningRate: number;
+  activation?: number;
+  awb?: number;
   bias: number;
-  desiredOutput?: number;
-  connectionsLeft: Connection[] = [];
-  connectionsRight: Connection[] = [];
-  activation?: number; // new input value!!!
-  deltaC?: number;
-  constructor(bias: number, learningRate: number) {
+  links: { left: Link[]; right?: Link[] };
+  expectedOutput?: number;
+  cost?: number;
+  constructor(bias: number) {
+    this.activation = 0;
     this.bias = bias;
-    this.learningRate = learningRate;
-  }
-
-  getInputsAndWeights(): { weights: number[]; inputs: number[] } {
-    let weights: number[] = [];
-    let inputs: number[] = [];
-    this.connectionsLeft.forEach((cLeft) => {
-      weights.push(cLeft.weight);
-      if (cLeft.nodeLeft instanceof Input) {
-        inputs.push(cLeft.nodeLeft.input!);
-      }
-      if (cLeft.nodeLeft instanceof Neuron) {
-        inputs.push(cLeft.nodeLeft.activation!);
-      }
-    });
-    return { weights, inputs };
+    this.links = { left: [], right: [] };
   }
 
   calculateActivation() {
-    const { weights, inputs } = this.getInputsAndWeights();
-    let wx = 0;
-    for (let i = 0; i < weights.length; i++) {
-      wx += weights[i] * inputs[i];
+    let aw = 0;
+    this.links.left.forEach((link) => {
+      aw += link.weight * link.left?.activation;
+    });
+    this.awb = aw + this.bias;
+    this.activation = 1 / (1 + Math.exp(-this.awb));
+  }
+  calculateCost() {
+    this.cost = Math.pow(this.activation! - this.expectedOutput!, 2);
+  }
+  calculateNewBiasAndWeights(learningRate: number) {
+    const dC_dA = 2 * (this.activation! - this.expectedOutput!);
+
+    updateAllLeft(this, dC_dA);
+
+    function updateAllLeft(neuron: Neuron, prevCostDerivate: number) {
+      if (!neuron.links.left) return;
+      const sigmoid = 1 / (1 + Math.exp(-neuron.awb!));
+      const lR = learningRate;
+
+      const dA_dAwb = (1 / sigmoid) * (1 - sigmoid);
+      const dAwb_dB = 1;
+      const dC_dB = prevCostDerivate * dA_dAwb * dAwb_dB;
+      neuron.bias = neuron.bias - lR * dC_dB;
+
+      neuron.links.left.forEach((link) => {
+        const dAwb_dW = link.weight;
+        const dC_dW = prevCostDerivate * dA_dAwb * dAwb_dW;
+        link.weight = link.weight - lR * dC_dW;
+        updateAllLeft(link.left as Neuron, dC_dW);
+      });
     }
-    const xwb = wx + this.bias;
-    // this.activation = 1 / (1 + Math.exp(-xwb)); // Sigmoid
-    this.activation = xwb > 0 ? xwb : 0; // RELU: a = f(max(0, x*w+b))
-  }
-}
-
-export class Connection {
-  weight: number;
-  learningRate: number;
-  nodeLeft: Node;
-  nodeRight: Node;
-  constructor(
-    weight: number,
-    nodeLeft: Node,
-    nodeRight: Node,
-    learningRate: number
-  ) {
-    this.weight = weight;
-    this.nodeLeft = nodeLeft;
-    this.nodeRight = nodeRight;
-    this.learningRate = learningRate;
-  }
-
-  // w1 = w0 - r*dc
-  calculateNewWeight(deltaC: number) {
-    this.weight = this.weight - this.learningRate * deltaC;
   }
 }

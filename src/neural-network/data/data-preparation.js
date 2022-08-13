@@ -32,11 +32,15 @@ function readMNIST(start, end) {
   return pixelValues;
 }
 
-function saveMNIST(start, end) {
+function saveMNIST(start, end, saveImages) {
   const canvas = createCanvas(28, 28);
   const ctx = canvas.getContext('2d');
 
   const pixelValues = readMNIST(start, end);
+
+  if (!saveImages) {
+    return;
+  }
 
   pixelValues.forEach(function (image) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -56,4 +60,4 @@ function saveMNIST(start, end) {
   });
 }
 
-saveMNIST(0, 10);
+saveMNIST(0, 10, true);
