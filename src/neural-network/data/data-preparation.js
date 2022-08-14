@@ -60,4 +60,4 @@ function saveMNIST(start, end, saveImages) {
   });
 }
 
-saveMNIST(0, 10, true);
+saveMNIST(0, 999, false);

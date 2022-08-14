@@ -1,15 +1,16 @@
+import { v4 as uuid } from "uuid";
 import { Input, Link, Neuron } from "./neural-network";
 
-const initFactor = 0.05;
+const initFactor = 1 / 768;
 
 export function createLayers() {
   const inputs = Array(768)
     .fill(null)
-    .map(() => new Input());
+    .map(() => new Input(uuid()));
   const layers: (Neuron | Input)[][] = [16, 16, 10].map((num) =>
     Array(num)
       .fill(null)
-      .map(() => new Neuron(Math.random() * initFactor))
+      .map(() => new Neuron(uuid(), Math.random() * initFactor))
   );
   (layers[0] as Neuron[]).forEach((n) => {
     delete n.expectedOutput;
@@ -35,6 +36,7 @@ export function addLinks(layers: (Neuron | Input)[][]) {
     layerLeft.forEach((neuronLeft) => {
       layerRight.forEach((neuronRight) => {
         const link = new Link(
+          uuid(),
           Math.random() * initFactor,
           neuronLeft,
           neuronRight as Neuron

@@ -2,12 +2,15 @@ import { addLinks, createLayers } from "./functions";
 import ImageData from "./data/image-data.json";
 import { Batch } from "./types";
 
+const learningRate = 0.1;
+const initialInput = (val: number) => (val * 0.99) / 255 + 0.01;
+
 export class Network {
   layers: (Neuron | Input)[][];
   batch: Batch;
   constructor() {
     this.layers = addLinks(createLayers());
-    this.batch = ImageData;
+    this.batch = ImageData as Batch;
   }
   initializeSample(batchIndex: number) {
     const sample = this.batch[batchIndex];
@@ -15,7 +18,7 @@ export class Network {
       input.setInputValue(this.batch[batchIndex].pixels[i]);
     });
     (this.layers[3] as Neuron[]).forEach(
-      (neuron, i) => (neuron.expectedOutput = i === sample.label ? 1 : 0)
+      (neuron, i) => (neuron.expectedOutput = i === sample.label ? 0.99 : 0.01)
     );
   }
   propagateForward() {
@@ -23,13 +26,13 @@ export class Network {
       if (i === 0) return;
       (layer as Neuron[]).forEach((neuron) => {
         neuron.calculateActivation();
-        neuron.calculateCost();
+        if (i === this.layers.length - 1) neuron.calculateCost();
       });
     });
   }
   propagateBack() {
     (this.layers[3] as Neuron[]).forEach((neuron) => {
-      neuron.calculateNewBiasAndWeights(0.1);
+      neuron.calculateNewBiasAndWeights(learningRate);
     });
   }
 }
@@ -38,21 +41,25 @@ export class Link {
   weight: number;
   left?: Neuron | Input;
   right?: Neuron;
-  constructor(weight: number, left: Neuron | Input, right: Neuron) {
+  id: string;
+  constructor(id: string, weight: number, left: Neuron | Input, right: Neuron) {
     this.weight = weight;
     this.left = left;
     this.right = right;
+    this.id = id;
   }
 }
 
 export class Input {
   activation?: any;
   links: { right: Link[] };
-  constructor() {
+  id: string;
+  constructor(id: string) {
     this.links = { right: [] };
+    this.id = id;
   }
   setInputValue(value: number) {
-    this.activation = value;
+    this.activation = initialInput(value);
   }
 }
 
@@ -63,10 +70,12 @@ export class Neuron {
   links: { left: Link[]; right?: Link[] };
   expectedOutput?: number;
   cost?: number;
-  constructor(bias: number) {
+  id: string;
+  constructor(id: string, bias: number) {
     this.activation = 0;
     this.bias = bias;
     this.links = { left: [], right: [] };
+    this.id = id;
   }
 
   calculateActivation() {
@@ -87,18 +96,21 @@ export class Neuron {
 
     function updateAllLeft(neuron: Neuron, prevCostDerivate: number) {
       if (!neuron.links.left) return;
-      const sigmoid = 1 / (1 + Math.exp(-neuron.awb!));
+
       const lR = learningRate;
+      const sigmoid = 1 / (1 + Math.exp(-neuron.awb!));
 
       const dA_dAwb = (1 / sigmoid) * (1 - sigmoid);
       const dAwb_dB = 1;
       const dC_dB = prevCostDerivate * dA_dAwb * dAwb_dB;
       neuron.bias = neuron.bias - lR * dC_dB;
+      // (neuron as any).DC_DB = dC_dB;
 
       neuron.links.left.forEach((link) => {
         const dAwb_dW = link.weight;
-        const dC_dW = prevCostDerivate * dA_dAwb * dAwb_dW;
+        let dC_dW = prevCostDerivate * dA_dAwb * dAwb_dW;
         link.weight = link.weight - lR * dC_dW;
+        // (link as any).DC_DW = dC_dW;
         updateAllLeft(link.left as Neuron, dC_dW);
       });
     }
