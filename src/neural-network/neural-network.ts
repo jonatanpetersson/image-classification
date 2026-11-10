@@ -18,12 +18,19 @@ export class Network {
   }
   initializeSample(batchIndex: number) {
     const sample = this.batch[batchIndex];
+    this.setInput(sample.pixels, sample.label);
+  }
+  /** Loads 28×28 pixel values (0–255). Without a label the network can still
+   *  guess, but has no expected output to calculate cost or train against. */
+  setInput(pixels: number[], label?: number) {
     (this.layers[0] as Input[]).forEach((input, i) => {
-      input.setInputValue(sample.pixels[i]);
+      input.setInputValue(pixels[i]);
     });
-    this.outputLayer.forEach(
-      (neuron, i) => (neuron.expectedOutput = i === sample.label ? 0.99 : 0.01)
-    );
+    this.outputLayer.forEach((neuron, i) => {
+      neuron.expectedOutput =
+        label === undefined ? undefined : i === label ? 0.99 : 0.01;
+      neuron.cost = undefined;
+    });
   }
   propagateForward() {
     this.layers.forEach((layer, i) => {
@@ -35,6 +42,7 @@ export class Network {
     });
   }
   propagateBack() {
+    if (this.outputLayer[0].expectedOutput === undefined) return;
     // 1. Compute every neuron's error term (delta = dC/dz), starting at the
     //    output layer and moving left. This must happen before any weight is
     //    changed, since each hidden delta depends on the weights to its right.
@@ -129,16 +137,17 @@ export class Neuron {
     this.activation = sigmoid(this.awb);
   }
   calculateCost() {
-    this.cost = Math.pow(this.activation - this.expectedOutput!, 2);
+    if (this.expectedOutput === undefined) return;
+    this.cost = Math.pow(this.activation - this.expectedOutput, 2);
   }
   calculateDelta() {
     // dA/d(awb) for a sigmoid is σ(awb)·(1 − σ(awb)), i.e. a·(1 − a).
     const dA_dAwb = this.activation * (1 - this.activation);
 
     let dC_dA: number;
-    if (this.expectedOutput !== undefined) {
+    if (!this.links.right) {
       // Output neuron: C = (a − y)²
-      dC_dA = 2 * (this.activation - this.expectedOutput);
+      dC_dA = 2 * (this.activation - this.expectedOutput!);
     } else {
       // Hidden neuron: its activation feeds every neuron to its right, so its
       // effect on the cost is the sum over those links of weight · delta.

@@ -7,3 +7,50 @@
   align-items: center;
   font-size: 1.6rem;
 }
+.draw-section {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1.5rem;
+  margin: 1rem 0;
+}
+
+.drawing {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.drawing-canvas {
+  width: min(280px, calc(100vw - 32px));
+  aspect-ratio: 1;
+  background: #000;
+  border-radius: 4px;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.draw-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pixel-preview {
+  width: 112px;
+  height: 112px;
+  image-rendering: pixelated;
+  border: 1px solid #888;
+}
+
+.guess {
+  font-size: 4rem;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.hint {
+  font-size: 1.1rem;
+  color: #a33;
+}
